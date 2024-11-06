@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"nettest/verdict" // Change this line to use relative import
+	"github.com/lonelysadness/OpenNet/verdict"
 
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/perf"
