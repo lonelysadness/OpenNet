@@ -6,12 +6,24 @@ import (
 	"sync"
 )
 
-type Action int
+type Action uint8
 
 const (
-	Allow Action = iota
-	Block
+	ALLOW Action = iota // Changed from Allow to ALLOW
+	BLOCK               // Changed from Block to BLOCK
 )
+
+// Add String method for Action type
+func (a Action) String() string {
+	switch a {
+	case ALLOW: // Updated to use ALLOW
+		return "ALLOW"
+	case BLOCK: // Updated to use BLOCK
+		return "BLOCK"
+	default:
+		return "UNKNOWN"
+	}
+}
 
 type Rule struct {
 	Name        string
@@ -52,7 +64,7 @@ func (rs *RuleSet) CheckVerdict(process, path string, srcIP, dstIP net.IP, dstPo
 	}
 
 	// Default allow if no rules match
-	return Allow, "default"
+	return ALLOW, "default"
 }
 
 func (r *Rule) matches(process, path string, srcIP, dstIP net.IP, dstPort uint16, protocol uint8) bool {

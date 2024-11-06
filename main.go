@@ -12,9 +12,10 @@ import (
 	"sync"
 	"time"
 
+	"nettest/verdict" // Change this line to use relative import
+
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/perf"
-	"github.com/yourusername/nettest/verdict"
 )
 
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc clang capture bpf/capture.c -- -I/usr/include/bpf -I/usr/include
@@ -86,14 +87,14 @@ func init() {
 	// Add some example rules
 	globalRules.AddRule(verdict.Rule{
 		Name:        "Block Social Media",
-		Action:      verdict.Block,
+		Action:      verdict.BLOCK, // Changed from Block to BLOCK
 		ProcessName: "chrome",
 		DstIP:       net.ParseIP("157.240.1.1"), // example Facebook IP
 	})
 
 	globalRules.AddRule(verdict.Rule{
 		Name:        "Block Gaming During Work",
-		Action:      verdict.Block,
+		Action:      verdict.BLOCK, // Changed from Block to BLOCK
 		ProcessName: "steam",
 	})
 }
@@ -185,7 +186,7 @@ func printNewConnection(conn *Connection) {
 	}
 
 	verdict := "✅ ALLOW"
-	if conn.Verdict == verdict.Block {
+	if conn.Verdict == verdict.BLOCK { // Changed from Block to BLOCK
 		verdict = "❌ BLOCK"
 	}
 
