@@ -70,27 +70,34 @@ func (rs *RuleSet) CheckVerdict(process, path string, srcIP, dstIP net.IP, dstPo
 }
 
 func (r *Rule) matches(process, path string, srcIP, dstIP net.IP, dstPort uint16, protocol uint8) bool {
+	fmt.Printf("Checking rule: %s\n", r.Name)
 	if r.ProcessName != "" && !strings.Contains(strings.ToLower(process), strings.ToLower(r.ProcessName)) {
+		fmt.Printf("Process name does not match: %s\n", r.ProcessName)
 		return false
 	}
 
 	if r.ProcessPath != "" && !strings.Contains(strings.ToLower(path), strings.ToLower(r.ProcessPath)) {
+		fmt.Printf("Process path does not match: %s\n", r.ProcessPath)
 		return false
 	}
 
 	if r.SrcIP != nil && !r.SrcIP.Equal(srcIP) {
+		fmt.Printf("Source IP does not match: %s\n", r.SrcIP.String())
 		return false
 	}
 
 	if r.DstIP != nil && !r.DstIP.Equal(dstIP) {
+		fmt.Printf("Destination IP does not match: %s\n", r.DstIP.String())
 		return false
 	}
 
 	if r.DstPort != 0 && r.DstPort != dstPort {
+		fmt.Printf("Destination port does not match: %d\n", r.DstPort)
 		return false
 	}
 
 	if r.Protocol != 0 && r.Protocol != protocol {
+		fmt.Printf("Protocol does not match: %d\n", r.Protocol)
 		return false
 	}
 
