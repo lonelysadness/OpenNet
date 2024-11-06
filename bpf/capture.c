@@ -140,14 +140,18 @@ int capture_packets(struct xdp_md *ctx) {
         bpf_sk_release(sk);
     }
 
-    // Update connection tracking
+    // Send connection info to userspace for verdict
+    bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &conn_info, sizeof(conn_info));
+
+    // Check if connection is already tracked
     __u64 *seen = bpf_map_lookup_elem(&connections, &conn_info);
-    if (!seen) {
-        __u64 ts = bpf_ktime_get_ns();
-        bpf_map_update_elem(&connections, &conn_info, &ts, BPF_ANY);
+    if (seen) {
+        // If connection exists in map, it was allowed
+        return XDP_PASS;
     }
 
-    bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &conn_info, sizeof(conn_info));
+    // For new connections, default to PASS and let userspace decide
+    // Userspace will add to connections map if allowed
     return XDP_PASS;
 }
 

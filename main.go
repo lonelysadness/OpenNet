@@ -14,6 +14,7 @@ import (
 
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/perf"
+	"github.com/yourusername/nettest/verdict"
 )
 
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc clang capture bpf/capture.c -- -I/usr/include/bpf -I/usr/include
@@ -36,15 +37,17 @@ const (
 )
 
 type Connection struct {
-	SrcIP       net.IP
-	DstIP       net.IP
-	SrcPort     uint16
-	DstPort     uint16
-	Protocol    uint8
-	State       ConnectionState
-	ProcessInfo ProcessInfo
-	FirstSeen   time.Time
-	LastSeen    time.Time
+	SrcIP         net.IP
+	DstIP         net.IP
+	SrcPort       uint16
+	DstPort       uint16
+	Protocol      uint8
+	State         ConnectionState
+	ProcessInfo   ProcessInfo
+	FirstSeen     time.Time
+	LastSeen      time.Time
+	Verdict       verdict.Action
+	VerdictReason string
 }
 
 type ProcessInfo struct {
@@ -76,6 +79,25 @@ func (ct *ConnectionTracker) key(conn *ConnectionInfo) string {
 		conn.Protocol)
 }
 
+// Add global ruleset
+var globalRules = verdict.NewRuleSet()
+
+func init() {
+	// Add some example rules
+	globalRules.AddRule(verdict.Rule{
+		Name:        "Block Social Media",
+		Action:      verdict.Block,
+		ProcessName: "chrome",
+		DstIP:       net.ParseIP("157.240.1.1"), // example Facebook IP
+	})
+
+	globalRules.AddRule(verdict.Rule{
+		Name:        "Block Gaming During Work",
+		Action:      verdict.Block,
+		ProcessName: "steam",
+	})
+}
+
 func (ct *ConnectionTracker) Update(conn *ConnectionInfo) {
 	ct.mu.Lock()
 	defer ct.mu.Unlock()
@@ -83,36 +105,40 @@ func (ct *ConnectionTracker) Update(conn *ConnectionInfo) {
 	key := ct.key(conn)
 	now := time.Now()
 
-	if existing, exists := ct.connections[key]; exists {
-		existing.LastSeen = now
-		return
-	}
-
 	srcIP := make([]byte, 4)
 	dstIP := make([]byte, 4)
 	binary.LittleEndian.PutUint32(srcIP, conn.SrcIP)
 	binary.LittleEndian.PutUint32(dstIP, conn.DstIP)
 
-	// Check if this is a local source IP
-	localIP := isLocalIP(net.IP(srcIP))
-
-	newConn := &Connection{
-		SrcIP:     net.IP(srcIP),
-		DstIP:     net.IP(dstIP),
-		SrcPort:   conn.SrcPort,
-		DstPort:   conn.DstPort,
-		Protocol:  conn.Protocol,
-		State:     StateNew,
-		FirstSeen: now,
-		LastSeen:  now,
+	if existing, exists := ct.connections[key]; exists {
+		existing.LastSeen = now
+		return
 	}
 
-	// Only try to find process info for outgoing connections from local IP
-	if localIP {
-		newConn.ProcessInfo = findProcess(conn.SrcIP, conn.SrcPort, conn.Protocol)
-	} else {
-		// For incoming connections, try to find the process listening on the destination port
-		newConn.ProcessInfo = findProcess(conn.DstIP, conn.DstPort, conn.Protocol)
+	procInfo := findProcess(conn.SrcIP, conn.SrcPort, conn.Protocol)
+
+	// Get verdict from rules
+	action, reason := globalRules.CheckVerdict(
+		procInfo.Name,
+		procInfo.Path,
+		net.IP(srcIP),
+		net.IP(dstIP),
+		conn.DstPort,
+		conn.Protocol,
+	)
+
+	newConn := &Connection{
+		SrcIP:         net.IP(srcIP),
+		DstIP:         net.IP(dstIP),
+		SrcPort:       conn.SrcPort,
+		DstPort:       conn.DstPort,
+		Protocol:      conn.Protocol,
+		State:         StateNew,
+		ProcessInfo:   procInfo,
+		FirstSeen:     now,
+		LastSeen:      now,
+		Verdict:       action,
+		VerdictReason: reason,
 	}
 
 	ct.connections[key] = newConn
@@ -159,7 +185,7 @@ func printNewConnection(conn *Connection) {
 	}
 
 	verdict := "✅ ALLOW"
-	if isBlockedDomain(conn.DstIP.String()) {
+	if conn.Verdict == verdict.Block {
 		verdict = "❌ BLOCK"
 	}
 
@@ -168,9 +194,10 @@ func printNewConnection(conn *Connection) {
 		procInfo = fmt.Sprintf("%s (PID: %d)", conn.ProcessInfo.Name, conn.ProcessInfo.PID)
 	}
 
-	fmt.Printf("[%s] %s - %s %s:%d → %s:%d | Process: %s\n",
+	fmt.Printf("[%s] %s (%s) - %s %s:%d → %s:%d | Process: %s\n",
 		time.Now().Format("15:04:05"),
 		verdict,
+		conn.VerdictReason,
 		proto,
 		conn.SrcIP.String(), conn.SrcPort,
 		conn.DstIP.String(), conn.DstPort,
