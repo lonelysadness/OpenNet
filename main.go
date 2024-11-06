@@ -86,16 +86,23 @@ var globalRules = verdict.NewRuleSet()
 func init() {
 	// Add some example rules
 	globalRules.AddRule(verdict.Rule{
-		Name:        "Block Social Media",
-		Action:      verdict.BLOCK, // Changed from Block to BLOCK
-		ProcessName: "chrome",
-		DstIP:       net.ParseIP("157.240.1.1"), // example Facebook IP
+		Name:   "Block Social Media",
+		Action: verdict.BLOCK,              // Changed from Block to BLOCK
+		DstIP:  net.ParseIP("157.240.1.1"), // example Facebook IP
 	})
 
 	globalRules.AddRule(verdict.Rule{
 		Name:        "Block Gaming During Work",
 		Action:      verdict.BLOCK, // Changed from Block to BLOCK
 		ProcessName: "steam",
+	})
+
+	// Add rule to block ICMP packets to 157.240.1.1
+	globalRules.AddRule(verdict.Rule{
+		Name:     "Block ICMP to 157.240.1.1",
+		Action:   verdict.BLOCK,
+		DstIP:    net.ParseIP("157.240.1.1"),
+		Protocol: 1, // ICMP protocol number
 	})
 }
 
@@ -118,6 +125,11 @@ func (ct *ConnectionTracker) Update(conn *ConnectionInfo) {
 
 	procInfo := findProcess(conn.SrcIP, conn.SrcPort, conn.Protocol)
 
+	// Debug print for ICMP packets
+	if conn.Protocol == 1 {
+		fmt.Printf("Captured ICMP packet: %s -> %s\n", net.IP(srcIP).String(), net.IP(dstIP).String())
+	}
+
 	// Get verdict from rules
 	action, reason := globalRules.CheckVerdict(
 		procInfo.Name,
@@ -127,6 +139,8 @@ func (ct *ConnectionTracker) Update(conn *ConnectionInfo) {
 		conn.DstPort,
 		conn.Protocol,
 	)
+
+	fmt.Printf("Verdict: %s, Reason: %s\n", action.String(), reason)
 
 	newConn := &Connection{
 		SrcIP:         net.IP(srcIP),
@@ -185,9 +199,9 @@ func printNewConnection(conn *Connection) {
 		proto = "UDP"
 	}
 
-	verdict := "✅ ALLOW"
+	verdictStr := "✅ ALLOW"
 	if conn.Verdict == verdict.BLOCK { // Changed from Block to BLOCK
-		verdict = "❌ BLOCK"
+		verdictStr = "❌ BLOCK"
 	}
 
 	procInfo := "Unknown Process"
@@ -197,20 +211,12 @@ func printNewConnection(conn *Connection) {
 
 	fmt.Printf("[%s] %s (%s) - %s %s:%d → %s:%d | Process: %s\n",
 		time.Now().Format("15:04:05"),
-		verdict,
+		verdictStr,
 		conn.VerdictReason,
 		proto,
 		conn.SrcIP.String(), conn.SrcPort,
 		conn.DstIP.String(), conn.DstPort,
 		procInfo)
-}
-
-func isBlockedDomain(ip string) bool {
-	// Add your blocking logic here
-	blockedIPs := map[string]bool{
-		"192.168.1.1": true, // Example
-	}
-	return blockedIPs[ip]
 }
 
 func cleanupOldConnections(ct *ConnectionTracker) {

@@ -1,6 +1,7 @@
 package verdict
 
 import (
+	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -59,6 +60,7 @@ func (rs *RuleSet) CheckVerdict(process, path string, srcIP, dstIP net.IP, dstPo
 
 	for _, rule := range rs.rules {
 		if rule.matches(process, path, srcIP, dstIP, dstPort, protocol) {
+			fmt.Printf("Rule matched: %s, Action: %s\n", rule.Name, rule.Action.String())
 			return rule.Action, rule.Name
 		}
 	}

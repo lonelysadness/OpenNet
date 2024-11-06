@@ -129,6 +129,11 @@ int capture_packets(struct xdp_md *ctx) {
         tuple.ipv4.sport = udp->source;
         tuple.ipv4.dport = udp->dest;
         sk = lookup_udp_sock(ctx, &tuple, sizeof(tuple.ipv4));
+    } else if (ip->protocol == IPPROTO_ICMP) {
+        // Block ICMP packets to specific IP
+        if (ip->daddr == bpf_htonl(0x9df00101)) { // 157.240.1.1 in hex
+            return XDP_DROP;
+        }
     }
 
     if (sk) {
