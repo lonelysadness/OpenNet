@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lonelysadness/OpenNet/verdict"
+	"OpenNet/verdict"
 
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/perf"

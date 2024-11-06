@@ -7,7 +7,7 @@ GO ?= go
 GOFLAGS := -v
 
 # Output binary name
-BINARY := nettest
+BINARY := OpenNet  # Changed from nettest
 
 # Directories
 BPFDIR := bpf
